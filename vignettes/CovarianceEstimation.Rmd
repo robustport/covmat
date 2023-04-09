@@ -1,0 +1,142 @@
+---
+title: "Covariance Estimation"
+author: "Rohit Arora"
+header-includes:
+   - \usepackage{float}
+date: "`r Sys.Date()`"
+output: 
+    rmarkdown::pdf_document:
+        number_sections: true
+        toc: yes
+        toc_depth: 2
+        fig_caption: yes
+fontsize: 12pt
+geometry: 
+    top=3cm, bottom=2cm, left=3cm, right=3cm
+bibliography: references.bib
+documentclass: article
+abstract:  There exists a rich modern set of covariance matrix estimator methods for use in financial data. The purpose of $\texttt{covmat}$ package is to implement some of these techniques such that they are readily available to be used with appropriate financial data. The purpose of this vignette is to demonstrate the usage of functions implemented in the $\texttt{covmat}$ package.
+
+---
+
+$\pagebreak$
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(fig.pos="h")
+knitr::opts_chunk$set(cache.path='./CovarianceEstimation_cache/')
+```
+
+
+```{r load_packages, results='hide', echo=FALSE, warning=FALSE, error=FALSE, message=FALSE}
+library(knitcitations)
+cleanbib()
+options("citation_format" = "pandoc")
+
+library(covmat)
+library(xts)
+library(robust)
+```
+
+#Load Package
+
+The latest version of the $\texttt{covmat}$ package can be downloaded and installed through the following command:
+```{r load, eval=FALSE}
+library(devtools)
+install_github("arorar/PortfolioConstruction/covmat")
+```
+
+```{r doi, echo=FALSE, warning=FALSE, error=FALSE, message=FALSE}
+bib <- read.bibtex("references.bib")
+```
+
+#Stambaugh Estimator
+
+Longer monthly return data series are often available from well-established companies. However, if we turn to newer companies we run into the problem of unequal histories where newer companies have shorter return histories. To calculate a covariance matrix for portfolio optimization with assets having unequal histories we can naively truncate the data to the largest available cross-section. This means discarding data. However, we can do better with using all available data for all assets using a methodology proposed by `r citep(bib[["Stambaugh_1997"]])`.
+
+##Data
+
+Say that we have a portfolio of 4 tech stocks $\texttt{TWTR, LNKD, V, YHOO, GE}$  of which only 2 have a return history of 6 years, while the other 3 have been around for less than four years. 
+
+```{r load-data, echo=FALSE, results='hide', warning=FALSE, error=FALSE, message=FALSE}
+
+data("missingdata")
+symbols <- c('TWTR', 'LNKD', 'V', 'YHOO', 'GE')
+symdata <- missingdata["2007-04-01/2014-12-31",symbols]
+
+```
+
+Lets start by visualizing the data. We can use the $\texttt{plotmissing}$ function to do this. The second parameter of this function allows us to choose how we want to visualize the data. A value of 3 suggests a time series plot and 4 suggests a matrix plot. We will choose to visualize the timeseries in this case
+
+
+```{r visual-missing, echo=FALSE, fig.width=10, fig.height=6}
+plotmissing(symdata, 3)
+
+```
+\
+
+$\newline$
+
+Notice how some return series have missing values and shorter lengths compared to other series. In particular Twitter recently had its IPO and has a large number of missing values. LinkedIn had its IPO in 2011 and has lesser missing values. While GE and Yahoo have complete data histories and no missing values for the period under consideration.
+
+
+##Covariance estimation
+To construct a valid covariance matrix we could truncate the data series making all of them about a year long and then calculate the sample covariance matrix. However, we can do better by using Stambaugh's method. Starting from the truncated sample covariance matrix, this technique produces improvements to the covariance matrix that utilizes all the available data along with using cross sectional dependency in returns data to construct a more accurate covariance matrix.
+
+Firstly, we will use the $\texttt{stambaugh.fit}$ function to construct the covariance matrices. This function takes in data and the type of covariance matrix that needs to be estimated. Additional arguments can be passed for robust estimation.
+
+```{r, eval=FALSE}
+stambaugh.fit(R, method=c("classic","robust", "truncated"), ...)
+```
+
+Let us compare a classical covariance matrix computed using Stambaugh's technique with a truncated classical covariance estimator.  
+
+```{r fit-model, warning=FALSE, error=FALSE, message=FALSE}
+models1 <- stambaugh.fit(symdata, method = c("classic", "truncated"))
+```
+
+## Plots
+
+We can construct two types of plots, an ellipses plot and a distance plot. Each can be separately invoked using the same $\texttt{plot}$ function but a separate $\texttt{which}$ parameter.
+
+```{r, eval=FALSE}
+plot(data, which=c(1,2))
+```
+
+We can visually compare the covariances by examining their correlations using the ellipses plot. The ellipses are contours of standard bivariate normals overlayed for each model. Notice that the ellipses for truncated data can be significantly different from ellipses for covariance estimates computed using Stambaugh's technique. The difference is very prominent for certain pairs such as LinkedIn and GE where the sign of the correlation has completely reversed.
+
+
+```{r plot-ellipse1, warning=FALSE, error=FALSE, message=FALSE, fig.width=10, fig.height=6}
+plot(models1,1)
+```
+\
+
+We will also compare the covariances of Stambaugh and Robust Stambaugh methods. Once again notice how the ellipses of Twitter and GE are significantly different.
+
+```{r plot-ellipse2, warning=FALSE, error=FALSE, message=FALSE, fig.width=10, fig.height=6}
+cov.control <- covRob.control(estim="mcd",alpha=0.9)
+models <- stambaugh.fit(symdata, method = c("classic", "robust"), 
+                        cov.control=cov.control)
+plot(models, 1)
+```
+\
+
+We can also look at the distances of the individual stocks to examine the outliers for the same dataset.  Notice that we will not use truncated models in this case for comparison as they have different data. Also we will pass a control parameter for robust covariance estimation. For outlier detection we need to evaluate the tail probability for a Chi-Square distribution. We will set it to 97.5%. This is indicated by the dashed line on the plot.
+
+
+```{r plot-distance, warning=FALSE, error=FALSE, message=FALSE, fig.width=10, fig.height=5.5}
+
+plot(models, 2, 0.975)
+
+```
+\
+
+$\newline$
+
+Notice how classical method suggests fewer outliers compared to Robust method. All outliers indicated by Classical method are also suggested as an outlier by the Robust method. Additional outliers indicated by the Robust method may be further examined.
+
+
+#References
+```{r references, echo=FALSE, warning=FALSE, error=FALSE, message=FALSE, echo=FALSE}
+#write.bibtex(file="references.bib")
+```
