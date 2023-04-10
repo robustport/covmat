@@ -17,7 +17,8 @@ Description: We implement a collection of techniques for estimating convariance 
 License: Artistic-2.0
 Suggests: knitr, knitcitations, testthat, roxygen2, quantmod, PortfolioAnalytics
 VignetteBuilder: knitr
-LazyLoad: yes
+LazyLoad: true
+LazyData: true
 Imports: 
   FactorAnalytics,
   zoo,
@@ -32,5 +33,6 @@ Imports:
   melt,
   fit.models
 NeedsCompilation: yes
-Additional_repositories: http://R-Forge.R-project.org
+Encoding: UTF-8
+# Additional_repositories: http://R-Forge.R-project.org
 RoxygenNote: 7.2.3
