@@ -116,7 +116,7 @@ We will also compare the covariances of Stambaugh and Robust Stambaugh methods. 
 ```{r plot-ellipse2, warning=FALSE, error=FALSE, message=FALSE, fig.width=10, fig.height=6}
 cov.control <- covRob.control(estim="mcd",alpha=0.9)
 models <- stambaugh.fit(symdata, method = c("classic", "robust"), 
-                        cov.control=cov.control)
+                        control=cov.control)
 plot(models, 1)
 ```
 \

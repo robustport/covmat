@@ -410,7 +410,7 @@ stambaugh.distance.plot <- function(model, level = 0.975) {
    dates <- try(as.Date(gsub("[A-Za-z ]+\\.", "", rownames(df))))
    df[, "Date"] <- c(seq(1:nrow(data)), seq(1:nrow(data)))
    dateCheckFailed <- ifelse(class(dates) != "try-error" &&
-      !is.na(dates), FALSE, TRUE)
+      all(!is.na(dates)), FALSE, TRUE)
 
    colnames(df) <- c("Type", "Distance", "Outlier", "Date")
    rownames(df) <- NULL
@@ -544,9 +544,7 @@ plotmissing <- function(data, which = c(3, 4)) {
    }
 
    if (which == 4) {
-      data <- coredata(data)
-
-      if (class(data) == "data.frame") cols <- cols[unlist(lapply(data, is.numeric))]
+      cols <- cols[unlist(lapply(data, is.numeric))]
       data <- data[, cols]
       colnames(data) <- sapply(cols, function(name) substr(name, 1, 9))
       matrixplot(data, main = "Location of Missing values")
@@ -554,27 +552,3 @@ plotmissing <- function(data, which = c(3, 4)) {
 
    options(warn = 0)
 }
-
-
-# library(xts)
-# library(FactorAnalytics)
-# library(robust)
-# library(ggplot2)
-# library(reshape2)
-# library(fit.models)
-# library(CerioliOutlierDetection)
-
-# load("D:/delete_this/covmat-new/data/missingdata.RData")
-# symbols <- c("TWTR", "LNKD", "V", "YHOO", "GE")
-# symdata <- missingdata["2007-04-01/2014-12-31", symbols]
-# plotmissing(symdata, 3)
-
-# models1 <- stambaugh.fit(symdata, method = c("classic", "truncated"))
-# plot(models1, 1)
-
-# cov.control <- covRob.control(estim = "mcd", alpha = 0.9)
-# models <- stambaugh.fit(symdata,
-#    method = c("classic", "robust"),
-#    cov.control = cov.control
-# )
-# plot(models, 1)
