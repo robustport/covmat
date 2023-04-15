@@ -459,7 +459,7 @@ stambaugh.distance.plot <- function(model, level = 0.975) {
    }
 
    ind <- head(floor(seq(1, nrow(data), length.out = 5)), -1)
-   if (!dateCheckFailed) p <- p + scale_x_discrete(breaks = ind, labels = format(dates[ind], "%Y"))
+   if (!dateCheckFailed) p <- p + scale_x_continuous(breaks = ind, labels = format(dates[ind], "%Y"))
    p <- p + theme(legend.position = "none")
 
    options(warn = -1)
@@ -501,7 +501,7 @@ plot.stambaugh <- function(x, y = c(1, 2), ...) {
 #' are shown in in Summary plot
 #'
 #' @param  data an xts/zoo object
-#' @param  which takes values 3/4. 3 = Summary plot, 4 = Matrix plot
+#' @param  which takes values 3/4. 3 = Time series plot, 4 = Matrix plot
 #' @import VIM reshape2
 #' @author Rohit Arora
 #' @export
@@ -536,7 +536,7 @@ plotmissing <- function(data, which = c(3, 4)) {
          geom_line() +
          xlab("Dates") +
          ylab("Returns") +
-         scale_x_discrete(breaks = ind, labels = year.dates[ind]) +
+         scale_x_continuous(breaks = ind, labels = year.dates[ind]) +
          facet_wrap(~Symbol, ncol = round(sqrt(symCount)), scales = "free_x") +
          theme(legend.position = "none")
 
