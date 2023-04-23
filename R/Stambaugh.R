@@ -54,6 +54,8 @@ stambaugh.est <- function(R, ...) {
       } else {
          cov(resid)
       }
+      
+      resid.cov <- as.matrix(resid.cov)
 
       loc.short <- as.matrix(fit$alpha) + B %*% loc.long
       loc.est <- rbind(loc.long, loc.short)
@@ -349,13 +351,26 @@ stambaugh.ellipse.plot <- function(models) {
             center = fit$models$`Robust Stambaugh`$center,
             cov = fit$models$`Robust Stambaugh`$cov
          ))
-
-         val <- cerioli2010.fsrmcd.test(symdata,
-            signif.alpha = 1 - level,
-            mcd.alpha = control$alpha
-         )
-         cval <- sqrt(val$critvalfcn(1 - level))
-         y.thresh[i] <- min(cval)
+         
+         val <- NULL
+         tryCatch({
+           val <- cerioli2010.fsrmcd.test(symdata,
+                                          signif.alpha = 1 - level,
+                                          mcd.alpha = control$alpha
+           )
+           
+         }, error = function(err) {
+           print(paste("Error: Outlier detection failed. Will default to Classical", conditionMessage(err)))
+         })
+         
+         if (!is.null(val)) {
+           # Code to be executed when the function call is successful
+           cval <- sqrt(val$critvalfcn(1 - level))
+           y.thresh[i] <- min(cval)
+         } else {
+           cval <- y.thresh[i]
+         }
+         
          out <- new.start - 1 + which(dist[new.start:new.end] > cval)
       }
 
@@ -420,7 +435,8 @@ stambaugh.distance.plot <- function(model, level = 0.975) {
    p <- ggplot(data = df, aes_string(x = "Date", y = "Distance")) +
       geom_point(aes_string(col = "Type", shape = "Type")) +
       facet_grid(~Type) +
-      geom_text(aes_string(label = "Outlier"), hjust = 1, vjust = 1) +
+     geom_text(aes(label = ifelse(!is.na(Outlier), as.character(Outlier), ""), 
+                   hjust = 1, vjust = 1)) +
       xlab("Date") +
       ylab("Square Root of Mahalanobis Distance") +
       theme(
