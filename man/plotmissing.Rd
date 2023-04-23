@@ -9,7 +9,7 @@ plotmissing(data, which = c(3, 4))
 \arguments{
 \item{data}{an xts/zoo object}
 
-\item{which}{takes values 3/4. 3 = Summary plot, 4 = Matrix plot}
+\item{which}{takes values 3/4. 3 = Time series plot, 4 = Matrix plot}
 }
 \description{
 Plot data to visualize missing values

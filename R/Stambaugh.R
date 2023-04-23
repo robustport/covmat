@@ -74,7 +74,7 @@ stambaugh.est <- function(R, ...) {
    data.m <- as.matrix(R)
 
    # remove rows with all NA
-   data.m <- data.m[rowSums(is.na(data.m)) != ncol(data.m), ]
+   data.m <- data.m[rowSums(is.na(data.m)) != ncol(data.m), ,drop = FALSE]
    if (nrow(data.m) == 0) {
       return(NA)
    }
@@ -128,7 +128,7 @@ stambaugh.est <- function(R, ...) {
    sort.count <- as.numeric(table(sort.start))
    cum.sort.count <- cumsum(sort.count)
 
-   data.sort <- data.m[, ord.start]
+   data.sort <- data.m[, ord.start, drop = FALSE]
 
    # start by computing the mean and covariance of longest columns that have the same len
    temp.data <- data.sort[, 1:cum.sort.count[1], drop = FALSE]
@@ -152,7 +152,7 @@ stambaugh.est <- function(R, ...) {
 
    cov.est <- if (robust) {
       if (ncol(temp.data) == 1) {
-         scaleTau2(temp.data)^2
+         as.matrix(scaleTau2(temp.data)^2)
       } else {
          val$sigma.hat.rw
       }
