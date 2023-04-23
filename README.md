@@ -8,5 +8,5 @@ To get started, you can install the package from github using `devtools`.
 
 ``` r
 library(devtools)
-install_github("arorar/PortfolioConstruction/covmat")
+install_github("https://github.com/arorar/PortfolioConstruction.git")
 ```

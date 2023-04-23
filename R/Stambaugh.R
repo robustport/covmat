@@ -152,13 +152,15 @@ stambaugh.est <- function(R, ...) {
 
    cov.est <- if (robust) {
       if (ncol(temp.data) == 1) {
-         as.matrix(scaleTau2(temp.data)^2)
+         scaleTau2(temp.data)^2
       } else {
          val$sigma.hat.rw
       }
    } else {
       cov(temp.data)
    }
+   
+   cov.est <- as.matrix(cov.est)
 
    # extract a long block and a short block and let the basic routine do the job.
    # Feed its output to the next set of grouped columns
@@ -181,7 +183,7 @@ stambaugh.est <- function(R, ...) {
    loc.est <- loc.est[old.start, , drop = FALSE]
    rownames(loc.est) <- col.names
 
-   cov.est <- cov.est[old.start, old.start]
+   cov.est <- cov.est[old.start, old.start, drop=FALSE]
    colnames(cov.est) <- col.names
    rownames(cov.est) <- col.names
 
