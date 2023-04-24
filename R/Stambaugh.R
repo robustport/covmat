@@ -431,10 +431,28 @@ stambaugh.distance.plot <- function(model, level = 0.975) {
 
    colnames(df) <- c("Type", "Distance", "Outlier", "Date")
    rownames(df) <- NULL
+   
+   my_labeller <- function(labels) {
+     # Convert the list of labels to character
+     labels <- lapply(labels, as.character)
+     
+     # Loop through each label
+     for (i in seq_along(labels)) {
+       if (labels[[i]] == "Classical") {
+         labels[[i]] <- "Stambaugh"
+       } else if (labels[[i]] == "Robust") {
+         labels[[i]] <- "Robust Stambaugh"
+       }
+     }
+     
+     # Return the modified list of labels
+     return(labels)
+   }
+   
 
    p <- ggplot(data = df, aes_string(x = "Date", y = "Distance")) +
       geom_point(aes_string(col = "Type", shape = "Type")) +
-      facet_grid(~Type) +
+     facet_grid(~Type, labeller = as_labeller(my_labeller)) +
      geom_text(aes(label = ifelse(!is.na(Outlier), as.character(Outlier), ""), 
                    hjust = 1, vjust = 1)) +
       xlab("Date") +
