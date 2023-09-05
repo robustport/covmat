@@ -308,7 +308,7 @@ stambaugh.ellipse.plot <- function(models) {
 #' @param  id.n number of outliers to show
 #' @author Rohit Arora
 #'
-#'
+#' @noRd
 .stambaugh.dist <- function(data, model, level, id.n = 10) {
    start <- apply(data, 2, function(col) which.min(is.na(col)))
    freq.tab <- data.frame(table(start))
@@ -360,7 +360,7 @@ stambaugh.ellipse.plot <- function(models) {
            )
            
          }, error = function(err) {
-           print(paste("Error: Outlier detection failed. Will default to Classical", conditionMessage(err)))
+           # print(paste("Msg: Outlier detection failed. Will default to Classical", conditionMessage(err)))
          })
          
          if (!is.null(val)) {
@@ -565,7 +565,7 @@ plotmissing <- function(data, which = c(3, 4)) {
       ind <- sapply(unique(year.dates), function(val) {
          which.max(year.dates == val)
       })
-      ind.ind <- seq.int(1, length(ind), length.out = min(10, length(ind)))
+      ind.ind <- seq.int(1, length(ind), length.out = min(15, length(ind)))
       ind <- ind[ind.ind]
 
       p <- ggplot(data = d, aes_string(x = "Index", y = "Returns", colour = "Symbol", group = "Symbol")) +

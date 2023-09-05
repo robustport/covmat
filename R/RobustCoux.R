@@ -7,7 +7,7 @@
 #' 
 #' @param p number of variables
 #' @param c  square root of the chi-square cutoff
-#' 
+#' @noRd
 .gamma_cp <- function(p, c) {
   
   IncGamma <- function(a,z) {
@@ -29,7 +29,7 @@
 #' @param j column number
 #' @param theta angle in the range [-pi/2, pi/2]
 #' @param d number of columns
-#' 
+#' @noRd
 .givens.rotation <- function(i, j, theta, d) {
   
   G <- diag(rep(1, d))
@@ -46,7 +46,7 @@
 #' 
 #' @param d number of columns
 #' @param theta angle in the range [-pi/2, pi/2]
-#' 
+#' @noRd
 .orthogonal.matrix <- function(d, angles) {
   
   O <- diag(rep(1, d)); k <- 1
@@ -70,7 +70,7 @@
 #' @param d number of columns
 #' @param params a vector of d(d+1)/2 parameters. First d are the eigenvalues and
 #'          remaining d(d-1)/2 are the angles.
-#' 
+#' @noRd
 .smoothing.matrix <- function(params, d) {
   end <- d*(d+1)/2
   theta.lambda <- params[1:d]; theta.angles <- params[(d+1):end]
@@ -90,6 +90,7 @@
 #' 
 #' @param x the value
 #' @param p number of columns
+#' @noRd
 .huber <- function(x, p){
   k <- sqrt(qchisq(0.95, df=p))
   min(k, max(x, -k))
@@ -103,7 +104,7 @@
 #' 
 #' @param x the value
 #' @param p number of columns
-#' 
+#' @noRd
 .biweight <- function(x, p){
   
   c <- sqrt(qchisq(0.95, df=p))
@@ -114,7 +115,7 @@
 }
 
 #' Internal helper function for the Objective
-#' 
+#' @noRd
 .obj.helper <- function(smoothing.matrix, R, y.hat, Sigma.hat, startup_period, 
                         training_period, lambda) {
   
@@ -163,7 +164,7 @@
 #' @param training_period length of samples required to calculate forecast errors
 #'                for evalualating the objective
 #' @param lambda known constant as described in the paper
-#' 
+#' @noRd
 .obj <- function(params, R, y.hat, Sigma.hat, startup_period, training_period, 
                  lambda) {
   

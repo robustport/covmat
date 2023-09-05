@@ -6,6 +6,7 @@
 #'
 #' @param sample_cov_matrix Sample covariance matrix
 #' @return Average correlation across variables
+#' @noRd
 calculate_avg_correlation <- function(sample_cov_matrix) {
   cor_matrix <- cov2cor(sample_cov_matrix)
   p <- ncol(cor_matrix)
@@ -22,6 +23,7 @@ calculate_avg_correlation <- function(sample_cov_matrix) {
 #' @param sample_cov_matrix Sample covariance matrix
 #' @param p Number of variables
 #' @return Target matrix for shrinkage
+#' @noRd
 calculate_target <- function(sample_cov_matrix) {
   avg_correlation <- calculate_avg_correlation(sample_cov_matrix)
   vol <- sqrt(diag(sample_cov_matrix))
@@ -43,6 +45,7 @@ calculate_target <- function(sample_cov_matrix) {
 #' @param n Effective sample size
 #' @param sample_cov_matrix Sample covariance matrix
 #' @return pi_hat parameter
+#' @noRd
 calculate_pi_hat <- function(X, sample_cov_matrix, diag=FALSE) {
   n <- nrow(X) - 1
   X_sq <- X^2
@@ -64,6 +67,7 @@ calculate_pi_hat <- function(X, sample_cov_matrix, diag=FALSE) {
 #' @param sample Sample covariance matrix
 #' @param target Target covariance matrix for shrinkage
 #' @return gamma_hat parameter
+#' @noRd
 calculate_gamma_hat <- function(sample, target) {
   gamma_hat <- norm(sample - target, type = "F")^2
   return(gamma_hat)
@@ -81,6 +85,7 @@ calculate_gamma_hat <- function(sample, target) {
 #' @param sample_cov_matrix Sample covariance matrix
 #' @param avg_correlation Average correlation across variables
 #' @return rho_hat parameter
+#' @noRd
 calculate_rho_hat <- function(X, sample_cov_matrix, avg_correlation) {
   n <- nrow(X) - 1
   p <- ncol(X)
@@ -108,6 +113,7 @@ calculate_rho_hat <- function(X, sample_cov_matrix, avg_correlation) {
 #' @param gamma_hat gamma_hat parameter
 #' @param n Effective sample size
 #' @return Shrinkage intensity
+#' @noRd
 calculate_shrinkage_intensity <- function(X, sample_cov_matrix, target) {
   n <- nrow(X) - 1
   pi_hat <- calculate_pi_hat(X, sample_cov_matrix)
@@ -128,6 +134,7 @@ calculate_shrinkage_intensity <- function(X, sample_cov_matrix, target) {
 #' @param target Target covariance matrix for shrinkage
 #' @param sample Sample covariance matrix
 #' @return Shrinkage estimator of the covariance matrix
+#' @noRd
 calculate_shrinkage_estimator <- function(shrinkage, target, sample) {
   sigma_hat <- shrinkage * target + (1 - shrinkage) * sample
   return(sigma_hat)
