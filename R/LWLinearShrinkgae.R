@@ -94,7 +94,8 @@ calculate_rho_hat <- function(X, sample_cov_matrix, avg_correlation) {
   avg_correlation <- calculate_avg_correlation(sample_cov_matrix)
   Z <- (t(X^3) %*% X) / n - outer(rep(1, p), sample_var) * sample_cov_matrix
   coeffs <- outer(sample_vol, 1 / sample_vol)
-  rho_off <- avg_correlation * ((sum(coeffs) - sum(diag(coeffs))) * Z)
+  temp_res <- coeffs * Z
+  rho_off <- avg_correlation * (sum(temp_res) - sum(diag(temp_res)))
   rho_diag <- calculate_pi_hat(X, sample_cov_matrix, diag = TRUE)
   rho_hat <- rho_diag + rho_off
   return(rho_hat)
