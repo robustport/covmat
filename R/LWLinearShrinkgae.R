@@ -147,14 +147,16 @@ calculate_shrinkage_estimator <- function(shrinkage, target, sample) {
 #' This function calculates the Ledoit-Wolf shrinkage covariance estimator
 #' to constant correlation unequal variance target matrix.
 #'
-#' @param X Data matrix which is centered.
-#' @return Shrinkage estimator of the covariance matrix
+#' @param X Data matrix.
+#' @return A list containing the shrinkage estimator of the covariance matrix
+#'         and the shrinkage intensity.
 #' @export
 #' @author Rohit Arora
 lw_linear_shrinkage <- function(X) {  
+  X <- scale(X, center = TRUE, scale = FALSE)
   sample_cov_matrix <- (t(X) %*% X) / (nrow(X) - 1)
   target <- calculate_target(sample_cov_matrix)
   shrinkage_intensity <- calculate_shrinkage_intensity(X, sample_cov_matrix, target)
   sigma_hat <- calculate_shrinkage_estimator(shrinkage_intensity, target, sample_cov_matrix)
-  return(sigma_hat)
+  return(list(cov = sigma_hat, shrinkage_intensity = shrinkage_intensity))
 }
