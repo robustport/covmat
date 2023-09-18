@@ -6,13 +6,18 @@
 described in (Ledoit, Olivier, and Michael Wolf. "Honey, I shrunk
 the sample covariance matrix.".}
 \usage{
-lw_linear_shrinkage(X)
+lw_linear_shrinkage(X, demean = TRUE, robust = FALSE)
 }
 \arguments{
-\item{X}{Data matrix which is centered.}
+\item{X}{Data matrix.}
+
+\item{demean}{remove mean from the features}
+
+\item{robust}{use robust estimator of average correlation}
 }
 \value{
-Shrinkage estimator of the covariance matrix
+A list containing the shrinkage estimator of the covariance matrix
+        and the shrinkage intensity.
 }
 \description{
 Calculate the shrinkage estimator of covariance using the procedure
