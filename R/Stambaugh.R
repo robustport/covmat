@@ -8,9 +8,9 @@
 #'
 #' @param  R xts or matrix of asset returns
 #' @param  ... allows passing additional paramters
-#' @importFrom FactorAnalytics fitTsfm
-#' @importFrom robust covRob.control
-#' @import  RCurl robust robustbase xts zoo CerioliOutlierDetection
+#' @importFrom facmodTS fitTsfm
+#' @importFrom robustbase rrcov.control
+#' @import  RCurl robustbase xts zoo
 #' @author Rohit Arora
 #' @export
 #'
@@ -49,7 +49,7 @@ stambaugh.est <- function(R, ...) {
          if (ncol(resid) == 1) {
             fit$resid.sd^2
          } else {
-            cerioli2010.fsrmcd.test(resid, mcd.alpha = mcd.alpha)$sigma.hat.rw
+            covMcd(resid)$cov
          }
       } else {
          cov(resid)
@@ -89,21 +89,24 @@ stambaugh.est <- function(R, ...) {
       FALSE
    )
 
-   cov.estim <- "mcd"
-   control <- covRob.control("mcd")
+   control <- rrcov.control()
+   mcd.alpha <- control$alpha  # Default alpha from rrcov.control
+   
    if (robust) {
-      if ("estim" %in% names(add.args)) {
-         cov.estim <- add.args[["estim"]]
-      } else {
-         add.args[["estim"]] <- cov.estim
-      }
-      if ("control" %in% names(add.args)) {
-         control <- add.args[["control"]]
-      } else {
-         add.args[["control"]] <- control
-      }
-      mcd.alpha <- control$alpha
+     # Set 'method' to "covMcd" if not provided in 'add.args'
+     add.args[["method"]] <- ifelse("method" %in% names(add.args), 
+                                    add.args[["method"]], 
+                                    "covMcd")
+     
+     # Update 'control' if provided in 'add.args', otherwise use default
+     if ("control" %in% names(add.args)) {
+       control <- add.args[["control"]]
+       mcd.alpha <- control$alpha  # Update alpha if 'control' is provided
+     } else {
+       add.args[["control"]] <- control
+     }
    }
+   
 
    # Idea is to sort columns from maximum to minum data. Apply the long-short
    # routine and use its estimate for the next step. In the next step use the
@@ -135,35 +138,25 @@ stambaugh.est <- function(R, ...) {
    # start by computing the mean and covariance of longest columns that have the same len
    temp.data <- data.sort[, 1:cum.sort.count[1], drop = FALSE]
 
-   val <- NULL
-   if (robust && ncol(temp.data) > 1) {
-      val <- cerioli2010.fsrmcd.test(temp.data, mcd.alpha = mcd.alpha)
-   }
-
-   loc.est <- if (robust) {
-      if (ncol(temp.data) == 1) {
-         loc <- as.numeric(coef(lmRob(temp.data ~ 1)))
-         names(loc) <- colnames(temp.data)
-         as.matrix(loc)
-      } else {
-         as.matrix(val$mu.hat.rw)
-      }
+   # Determine if the data is univariate or multivariate
+   is_univariate <- ncol(temp.data) == 1
+   
+   # Compute location and covariance estimates based on robustness and dimensionality
+   if (robust) {
+     if (is_univariate) {
+       loc.est <- as.matrix(as.numeric(coef(lmrob(temp.data ~ 1))), nrow = 1)
+       names(loc.est) <- colnames(temp.data)
+       cov.est <- as.matrix(scaleTau2(temp.data)^2, nrow = 1)
+     } else {
+       mcd <- covMcd(temp.data, alpha = mcd.alpha)
+       loc.est <- as.matrix(mcd$center, nrow = 1)
+       cov.est <- as.matrix(mcd$cov)
+     }
    } else {
-      as.matrix(apply(temp.data, 2, mean))
-   }
-
-   cov.est <- if (robust) {
-      if (ncol(temp.data) == 1) {
-         scaleTau2(temp.data)^2
-      } else {
-         val$sigma.hat.rw
-      }
-   } else {
-      cov(temp.data)
+     loc.est <- as.matrix(apply(temp.data, 2, mean), nrow = 1)
+     cov.est <- as.matrix(cov(temp.data))
    }
    
-   cov.est <- as.matrix(cov.est)
-
    # extract a long block and a short block and let the basic routine do the job.
    # Feed its output to the next set of grouped columns
 
@@ -204,8 +197,8 @@ stambaugh.est <- function(R, ...) {
 #' computes a covariance estimator based on the specifed style
 #'
 #' @param  R xts or matrix of asset returns
-#' @param  ... pass paramters to fitTimeSeriesFactorModel(FactorAnalytics),
-#' covRob, lmRob (Robust) functions
+#' @param  ... pass paramters to fitTimeSeriesFactorModel(facmodTS),
+#' covRob, lmrob (robustbase) functions
 #' @param method type of model to fit. Takes 3 values classic/robust/truncated
 #' @author Rohit Arora
 #' @export
@@ -352,25 +345,7 @@ stambaugh.ellipse.plot <- function(models) {
             cov = fit$models$`Robust Stambaugh`$cov
          ))
          
-         val <- NULL
-         tryCatch({
-           val <- cerioli2010.fsrmcd.test(symdata,
-                                          signif.alpha = 1 - level,
-                                          mcd.alpha = control$alpha
-           )
-           
-         }, error = function(err) {
-           # print(paste("Msg: Outlier detection failed. Will default to Classical", conditionMessage(err)))
-         })
-         
-         if (!is.null(val)) {
-           # Code to be executed when the function call is successful
-           cval <- sqrt(val$critvalfcn(1 - level))
-           y.thresh[i] <- min(cval)
-         } else {
-           cval <- y.thresh[i]
-         }
-         
+         cval <- y.thresh[i]
          out <- new.start - 1 + which(dist[new.start:new.end] > cval)
       }
 
@@ -450,8 +425,8 @@ stambaugh.distance.plot <- function(model, level = 0.975) {
    }
    
 
-   p <- ggplot(data = df, aes_string(x = "Date", y = "Distance")) +
-      geom_point(aes_string(col = "Type", shape = "Type")) +
+   p <- ggplot(data = df, aes(x = !!sym("Date"), y = !!sym("Distance"))) +
+     geom_point(aes(color = !!sym("Type"), shape = !!sym("Type")))  +
      facet_grid(~Type, labeller = as_labeller(my_labeller)) +
      geom_text(aes(label = ifelse(!is.na(Outlier), as.character(Outlier), ""), 
                    hjust = 1, vjust = 1)) +
@@ -473,10 +448,13 @@ stambaugh.distance.plot <- function(model, level = 0.975) {
       )
 
       p <- p + geom_segment(
-         data = data.segm,
-         aes_string(x = "x", y = "y", yend = "yend", xend = "xend"),
-         inherit.aes = FALSE, linetype = "dashed", colour = "blue"
+        data = data.segm,
+        aes(x = !!sym("x"), y = !!sym("y"), xend = !!sym("xend"), yend = !!sym("yend")),
+        inherit.aes = FALSE, 
+        linetype = "dashed", 
+        colour = "blue"
       )
+      
 
       data.segm <- data.frame(
          x = rep(x.thresh[i + 1], 2),
@@ -488,10 +466,13 @@ stambaugh.distance.plot <- function(model, level = 0.975) {
 
 
       p <- p + geom_segment(
-         data = data.segm,
-         aes_string(x = "x", y = "y", yend = "yend", xend = "xend"),
-         inherit.aes = FALSE, linetype = "dashed", colour = "blue"
+        data = data.segm,
+        aes(x = x, y = y, xend = xend, yend = yend),
+        inherit.aes = FALSE, 
+        linetype = "dashed", 
+        colour = "blue"
       )
+      
    }
 
    ind <- head(floor(seq(1, nrow(data), length.out = 5)), -1)
@@ -543,48 +524,33 @@ plot.stambaugh <- function(x, y = c(1, 2), ...) {
 #' @export
 #'
 #'
-plotmissing <- function(data, which = c(3, 4)) {
+plotmissing <- function(data) {
    cols <- colnames(data)
    if (length(cols) == 0) stop("Data should have column names")
 
    which <- which[1]
 
-   options(warn = -1)
-
-   if (which == 3) {
-      ind <- which.min(apply(is.na(data), 2, which.min))
-      dates <- index(data[, ind])
-
-      d <- melt(coredata(data))
-      colnames(d) <- c("Index", "Symbol", "Returns")
-      symCount <- ncol(data)
-
-      # ind <- head(floor(seq(1,nrow(data),length.out = 9)),-1)
-
-      year.dates <- format(dates, "%Y")
-      ind <- sapply(unique(year.dates), function(val) {
-         which.max(year.dates == val)
-      })
-      ind.ind <- seq.int(1, length(ind), length.out = min(15, length(ind)))
-      ind <- ind[ind.ind]
-
-      p <- ggplot(data = d, aes_string(x = "Index", y = "Returns", colour = "Symbol", group = "Symbol")) +
-         geom_line() +
-         xlab("Dates") +
-         ylab("Returns") +
-         scale_x_continuous(breaks = ind, labels = year.dates[ind]) +
-         facet_wrap(~Symbol, ncol = round(sqrt(symCount)), scales = "free_x") +
-         theme(legend.position = "none")
-
-      print(p)
-   }
-
-   if (which == 4) {
-      cols <- cols[unlist(lapply(data, is.numeric))]
-      data <- data[, cols]
-      colnames(data) <- sapply(cols, function(name) substr(name, 1, 9))
-      matrixplot(data, main = "Location of Missing values")
-   }
-
-   options(warn = 0)
+   ind <- which.min(apply(is.na(data), 2, which.min))
+   dates <- index(data[, ind])
+   
+   d <- melt(coredata(data))
+   colnames(d) <- c("Index", "Symbol", "Returns")
+   symCount <- ncol(data)
+   
+   year.dates <- format(dates, "%Y")
+   ind <- sapply(unique(year.dates), function(val) {
+     which.max(year.dates == val)
+   })
+   ind.ind <- seq.int(1, length(ind), length.out = min(15, length(ind)))
+   ind <- ind[ind.ind]
+   
+   p <- ggplot(data = d, aes(x = Index, y = Returns, colour = Symbol, group = Symbol)) +
+     geom_line() +
+     xlab("Dates") +
+     ylab("Returns") +
+     scale_x_continuous(breaks = ind, labels = year.dates[ind]) +
+     facet_wrap(~Symbol, ncol = round(sqrt(symCount)), scales = "free_x") +
+     theme(legend.position = "none")
+   
+   print(p)
 }
