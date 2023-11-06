@@ -207,7 +207,7 @@
 smoothing.matrix <- function(R, startup_period = 10, training_period = 60 , 
                              seed = 9999, trials = 50, method = "L-BFGS-B",
                              lambda = 0.2) { 
-                               
+  
   M <- nrow(R); d <- ncol(R)
   if(M < 4*d) stop("Not enough data for estimation")
   
@@ -217,10 +217,10 @@ smoothing.matrix <- function(R, startup_period = 10, training_period = 60 ,
     training_period <- startup_period + 2*d
   
   if ( M < (startup_period + training_period)) 
-    stop("Insufficienct data. Reset correct startup & training periods")
+    stop("Insufficient data. Reset correct startup & training periods")
   
   startup.fit <- lapply(1:d, function(i) {
-    lmRob(coredata(R[1:startup_period,i]) ~ as.matrix(1:startup_period))
+    lmrob(coredata(R[1:startup_period,i]) ~ as.matrix(1:startup_period))
   })
   
   y.hat <- matrix(NA, nrow = training_period, ncol = ncol(R))
@@ -237,28 +237,25 @@ smoothing.matrix <- function(R, startup_period = 10, training_period = 60 ,
   
   Umin <- matrix(rep.int(lower, trials), nrow = trials, ncol=nlower, byrow=T)
   start <- (Umin + matrix(rep.int(width, trials), nrow = trials, 
-                      ncol=nlower, byrow=T)*maximinLHS(n = trials, k = nlower))
+                          ncol=nlower, byrow=T)*maximinLHS(n = trials, k = nlower))
   
-  cl <- makeCluster(detectCores())
-  clusterExport(cl, varlist = c("lower", "upper", ".obj", "optimx","R"), 
-                envir = environment())
-  registerDoParallel(cl)  
+  # Convert rows of 'start' matrix to a list of parameter vectors
+  start_list <- split(start, row(start))
   
-  objmin <- parRapply(cl, start, function (x)
-    try(optimx(x, .obj, lower = lower, upper = upper, method = method, R = R , 
-               y.hat = y.hat, Sigma.hat = Sigma.hat, startup_period = startup_period, 
-             training_period = training_period, lambda = lambda), silent=TRUE))
+  objmin <- lapply(start_list, function (x)
+    try(optim(x, .obj, lower = lower, upper = upper, method = method, R = R , 
+              y.hat = y.hat, Sigma.hat = Sigma.hat, startup_period = startup_period, 
+              training_period = training_period, lambda = lambda), silent=FALSE))
   
-  fit <- objmin[[unique(which.min(parSapply(cl, objmin, '[[', "value")))]]
+  fit <- objmin[[which.min(sapply(objmin, '[[', "value"))]]
   
-  stopCluster(cl)
-  registerDoSEQ()
-  
-  params <- unlist(fit[1:(d*(d+1)/2)])
+  params <- unlist(fit$par[1:(d*(d+1)/2)])
   N <- .smoothing.matrix(params, d)
   list(smooth.mat = N, minObj = fit, startup_period = startup_period, 
-            training_period = training_period)
+       training_period = training_period)
 }
+
+
 
 #' Robust Multivariate Exponential Smoothing
 #' 
@@ -319,7 +316,7 @@ robustMultExpSmoothing <- function(R, smoothMat = NA, startup_period = 10,
   
   y.hat <- matrix(NA, nrow = M, ncol = ncol(R))
   startup.fit <- lapply(1:d, function(i) {
-    lmRob(coredata(R[1:startup_period,i]) ~ as.matrix(1:startup_period))
+    lmrob(coredata(R[1:startup_period,i]) ~ as.matrix(1:startup_period))
   })
   
   y.hat[1:startup_period,] <- do.call(cbind, lapply(startup.fit, fitted))

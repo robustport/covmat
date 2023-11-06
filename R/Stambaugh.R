@@ -528,10 +528,7 @@ plotmissing <- function(data) {
    cols <- colnames(data)
    if (length(cols) == 0) stop("Data should have column names")
 
-   which <- which[1]
-
-   ind <- which.min(apply(is.na(data), 2, which.min))
-   dates <- index(data[, ind])
+   dates <- index(data[, which.min(colSums(is.na(data)))])
    
    d <- melt(coredata(data))
    colnames(d) <- c("Index", "Symbol", "Returns")
