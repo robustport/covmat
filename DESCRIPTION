@@ -31,7 +31,8 @@ Imports:
   reshape2,
   CerioliOutlierDetection,
   melt,
-  fit.models
+  fit.models,
+  RobStatTM
 NeedsCompilation: yes
 Encoding: UTF-8
 # Additional_repositories: http://R-Forge.R-project.org

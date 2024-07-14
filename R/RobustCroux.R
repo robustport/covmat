@@ -123,6 +123,8 @@
   
   forecast.error <- matrix(NA, nrow = training_period - startup_period, ncol = d)
   cleaned.val <- matrix(NA, nrow = training_period - startup_period, ncol = d)
+  covMatList <- vector("list", length = training_period - startup_period)
+
   
   for(t in (startup_period + 1):training_period) {
     
@@ -140,13 +142,20 @@
     
     y.hat[t,] <- smoothing.matrix %*% cleanVal + 
       (I - smoothing.matrix) %*% t(y.hat[t-1,,drop=FALSE])
+    
+    if ((t - startup_period) >= 2*d) {
+      h <- floor(0.75 * (t - startup_period))
+      forecast.error.t <- forecast.error[1:(t - startup_period), , drop = FALSE]
+      covMatList[[t - startup_period]] <- covMcd(forecast.error.t, nsamp = h)$cov
+      rownames(covMatList[[t - startup_period]]) <- colnames(covMatList[[t - startup_period]]) <- colnames(R)
+    }
   }
   
-  h <- floor(0.75 * (training_period - startup_period))
-  Sigma.hat <- covMcd(forecast.error, nsamp = h)$cov
-  
+  time_periods <- index(R)[(startup_period + 1):training_period]
+  names(covMatList) <- time_periods
+  covMatList <- Filter(Negate(is.null), covMatList)
   smoothVal <- y.hat[(startup_period + 1):training_period,]
-  list(smoothValues = smoothVal, cleanValues = cleaned.val, covMat = Sigma.hat)
+  list(smoothValues = smoothVal, cleanValues = cleaned.val, covMatList = covMatList)
 }
 
 #' Objective to calculate the optimal smoothing matrix
@@ -173,7 +182,8 @@
   fit <- .obj.helper(smoothing.matrix, R, y.hat, Sigma.hat, startup_period, 
               training_period, lambda)
 
-  forecast.accuracy <- det(fit$covMat)
+  last_element <- tail(fit$covMatList, n = 1)[[1]]
+  forecast.accuracy <- det(last_element)
   forecast.accuracy
 }
 
@@ -227,7 +237,7 @@ smoothing.matrix <- function(R, startup_period = 10, training_period = 60 ,
   y.hat[1:startup_period,] <- do.call(cbind, lapply(startup.fit, fitted))
   
   res <- do.call(cbind, lapply(startup.fit, residuals))  
-  Sigma.hat <- covMcd(res)$cov
+  Sigma.hat <- covRobRocke(res)$cov
   
   set.seed(seed)
   
@@ -259,29 +269,34 @@ smoothing.matrix <- function(R, startup_period = 10, training_period = 60 ,
 
 #' Robust Multivariate Exponential Smoothing
 #' 
-#' @details
-#' Calculate Robust estimate of covariance matrix while also smoothing and 
+#' @description
+#' Calculate a robust estimate of the covariance matrix while also smoothing and 
 #' cleaning the data using the procedure described in 
-#' (Croux, Gelper, and Mahieu, 2010)
+#' (Croux, Gelper, and Mahieu, 2010).
 #' 
-#' @param R data
-#' @param smoothMat Optimal smoothing matrix. If missing it is estimated. 
-#'              The procedure maybe very slow for high-dimensional data. Also,
-#'              the objective function being very noisy, optimization across
-#'              multiple runs may lead to different smoothing matrices. #' 
-#' @param startup_period length of samples required to calculate initial values
-#' @param training_period length of samples required to calculate forecast errors
-#'                for evalualating the objective if smoothing matrix is estimated
-#' @param seed random seed to replicate the starting values for optimization
-#' @param trials number of strarting values to try for any optimization. 
-#'            Large number of trials for high dimensions can be time consuming
-#' @param method optimization method to use to evaluate an estimate of 
-#'            smoothing matrix. Default is L-BFGS-B
-#' @param lambda known constant as described in the paper. Defaults to 0.2
+#' @param R An xts object containing the data.
+#' @param smoothMat Optional. The optimal smoothing matrix. If missing, it is estimated. 
+#'                  The procedure may be very slow for high-dimensional data. Also,
+#'                  the objective function being very noisy, optimization across
+#'                  multiple runs may lead to different smoothing matrices.
+#' @param startup_period Integer. Length of samples required to calculate initial values.
+#' @param training_period Integer. Length of samples required to calculate forecast errors
+#'                        for evaluating the objective if the smoothing matrix is estimated.
+#' @param seed Integer. Random seed to replicate the starting values for optimization.
+#' @param trials Integer. Number of starting values to try for any optimization. 
+#'               A large number of trials for high dimensions can be time-consuming.
+#' @param method Character. Optimization method to use to evaluate an estimate of 
+#'               the smoothing matrix. Default is "L-BFGS-B".
+#' @param lambda Numeric. Known constant as described in the paper. Defaults to 0.2.
+#' 
+#' @return A list containing:
+#' \item{smoothMat}{The optimal smoothing matrix.}
+#' \item{smoothValues}{The smoothed values as an xts object.}
+#' \item{cleanValues}{The cleaned values as an xts object.}
+#' \item{covMatList}{A list of covariance matrices for each time period.}
 #' 
 #' @export
 #' @author Rohit Arora
-#' 
 robustMultExpSmoothing <- function(R, smoothMat = NA, startup_period = 10, 
                          training_period = 60 , seed = 9999, trials = 50, 
                          method = "L-BFGS-B", lambda = 0.2) {
@@ -322,19 +337,16 @@ robustMultExpSmoothing <- function(R, smoothMat = NA, startup_period = 10,
   y.hat[1:startup_period,] <- do.call(cbind, lapply(startup.fit, fitted))
   
   res <- do.call(cbind, lapply(startup.fit, residuals))  
-  Sigma.hat <- covMcd(res)$cov
+  Sigma.hat <- covRobRocke(res)$cov
   
   fit <- .obj.helper(smoothMat, R = R, y.hat = y.hat, Sigma.hat = Sigma.hat, 
                      startup_period = startup_period, 
                      training_period = M, lambda = lambda)
   
-  smoothValues <- fit$smoothValues; cleanValues <- fit$cleanValues; covMat <- fit$covMat
-  rownames(covMat) <- colnames(covMat) <- colnames(R)
-  colnames(smoothValues) <- colnames(cleanValues) <- colnames(R)
-  
+  smoothValues <- fit$smoothValues; cleanValues <- fit$cleanValues; covMatList <- fit$covMatList  
   smoothValues <- xts(smoothValues, order.by = index(R)[(startup_period+1):M])
   cleanValues <- xts(cleanValues, order.by = index(R)[(startup_period+1):M])
   
   list(smoothMat = smoothMat, smoothValues = smoothValues, 
-       cleanValues = cleanValues, covMat = covMat)
+       cleanValues = cleanValues, covMatList = covMatList)
 }
