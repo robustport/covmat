@@ -36,4 +36,4 @@ Imports:
 NeedsCompilation: yes
 Encoding: UTF-8
 # Additional_repositories: http://R-Forge.R-project.org
-RoxygenNote: 7.2.3
+RoxygenNote: 7.3.2

@@ -12,8 +12,8 @@ stambaugh.fit(R, method = c("classic", "robust", "truncated"), ...)
 
 \item{method}{type of model to fit. Takes 3 values classic/robust/truncated}
 
-\item{...}{pass paramters to fitTimeSeriesFactorModel(FactorAnalytics),
-covRob, lmRob (Robust) functions}
+\item{...}{pass paramters to fitTimeSeriesFactorModel(facmodTS),
+covRob, lmrob (robustbase) functions}
 }
 \description{
 Estimate covariance matrices using Stambaugh method for classical and Robust

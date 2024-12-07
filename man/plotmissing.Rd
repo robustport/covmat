@@ -4,7 +4,7 @@
 \alias{plotmissing}
 \title{Plot data to visualize missing values}
 \usage{
-plotmissing(data, which = c(3, 4))
+plotmissing(data)
 }
 \arguments{
 \item{data}{an xts/zoo object}

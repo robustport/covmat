@@ -114,6 +114,49 @@
   else g
 }
 
+#' Internal helper function for computing the Mahalanobis distances
+#' @noRd
+.calculate_mahalanobis <- function(cleanValues, covts, dates) {
+    xts(
+        sapply(dates, function(d) {
+            tryCatch({
+                x <- cleanValues[d]
+                sigma <- covts[d]
+                sqrt(x %*% solve(sigma) %*% t(x))
+            }, error = function(e) NA)
+        }),
+        order.by=dates
+    )
+}
+
+#' Internal helper function for computing the eigenvalues
+#' @noRd
+.calculate_eigenvalues <- function(matrices, corr = FALSE, dates) {
+    xts(
+        t(sapply(dates, function(d) {
+            tryCatch({
+                sigma <- if(corr) matrices$corrts[d] else matrices$covts[d]
+                sort(eigen(sigma)$values, decreasing = TRUE)
+            }, error = function(e) rep(NA, ncol(sigma)))
+        })),
+        order.by=dates
+    )
+}
+
+#' Internal helper function for computing the standard deviation
+#' @noRd
+.calculate_standard_deviations <- function(matrices, dates) {
+    xts(
+        t(sapply(dates, function(d) {
+            tryCatch({
+                sigma <- matrices$covts[d]
+                sqrt(diag(sigma))
+            }, error = function(e) rep(NA, ncol(sigma)))
+        })),
+        order.by=dates
+    )
+}
+
 #' Internal helper function for the Objective
 #' @noRd
 .obj.helper <- function(smoothing.matrix, R, y.hat, Sigma.hat, startup_period, 
@@ -199,6 +242,7 @@
 #' 
 #' @importFrom optimx optimx
 #' @importFrom parallel parRapply parSapply
+#' @importFrom RobStatTM covRobRocke
 #' 
 #' @param R data
 #' @param startup_period length of samples required to calculate initial values
@@ -237,7 +281,7 @@ smoothing.matrix <- function(R, startup_period = 10, training_period = 60 ,
   y.hat[1:startup_period,] <- do.call(cbind, lapply(startup.fit, fitted))
   
   res <- do.call(cbind, lapply(startup.fit, residuals))  
-  Sigma.hat <- covRobRocke(res)$cov
+  Sigma.hat <- RobStatTM::covRobRocke(res)$cov
   
   set.seed(seed)
   
@@ -247,7 +291,7 @@ smoothing.matrix <- function(R, startup_period = 10, training_period = 60 ,
   
   Umin <- matrix(rep.int(lower, trials), nrow = trials, ncol=nlower, byrow=T)
   start <- (Umin + matrix(rep.int(width, trials), nrow = trials, 
-                          ncol=nlower, byrow=T)*maximinLHS(n = trials, k = nlower))
+                          ncol=nlower, byrow=T)*lhs::maximinLHS(n = trials, k = nlower))
   
   # Convert rows of 'start' matrix to a list of parameter vectors
   start_list <- split(start, row(start))
@@ -274,7 +318,11 @@ smoothing.matrix <- function(R, startup_period = 10, training_period = 60 ,
 #' cleaning the data using the procedure described in 
 #' (Croux, Gelper, and Mahieu, 2010).
 #' 
+#' @importFrom RobStatTM covRobRocke
+#' 
 #' @param R An xts object containing the data.
+#' @param corr A boolean indicating whether additional correlation matrix is needed. If true,
+#'              additional correlation matrix is returned.
 #' @param smoothMat Optional. The optimal smoothing matrix. If missing, it is estimated. 
 #'                  The procedure may be very slow for high-dimensional data. Also,
 #'                  the objective function being very noisy, optimization across
@@ -294,10 +342,13 @@ smoothing.matrix <- function(R, startup_period = 10, training_period = 60 ,
 #' \item{smoothValues}{The smoothed values as an xts object.}
 #' \item{cleanValues}{The cleaned values as an xts object.}
 #' \item{covMatList}{A list of covariance matrices for each time period.}
+#' \item{mahalanobis_distances}{A list of distances using covariance for each time period.}
+#' \item{eigenvalues}{A list of eigenvalues for covariance/correlation for each time period.}
+#' \item{standard_deviations}{A list of standard deviations when corr is TRUE for each time period.}
 #' 
 #' @export
 #' @author Rohit Arora
-robustMultExpSmoothing <- function(R, smoothMat = NA, startup_period = 10, 
+robustMultExpSmoothing <- function(R, corr = FALSE, smoothMat = NA, startup_period = 10, 
                          training_period = 60 , seed = 9999, trials = 50, 
                          method = "L-BFGS-B", lambda = 0.2) {
   
@@ -337,7 +388,7 @@ robustMultExpSmoothing <- function(R, smoothMat = NA, startup_period = 10,
   y.hat[1:startup_period,] <- do.call(cbind, lapply(startup.fit, fitted))
   
   res <- do.call(cbind, lapply(startup.fit, residuals))  
-  Sigma.hat <- covRobRocke(res)$cov
+  Sigma.hat <- RobStatTM::covRobRocke(res)$cov
   
   fit <- .obj.helper(smoothMat, R = R, y.hat = y.hat, Sigma.hat = Sigma.hat, 
                      startup_period = startup_period, 
@@ -346,7 +397,24 @@ robustMultExpSmoothing <- function(R, smoothMat = NA, startup_period = 10,
   smoothValues <- fit$smoothValues; cleanValues <- fit$cleanValues; covMatList <- fit$covMatList  
   smoothValues <- xts(smoothValues, order.by = index(R)[(startup_period+1):M])
   cleanValues <- xts(cleanValues, order.by = index(R)[(startup_period+1):M])
+
+  covts <- create_matrix_xts(covMatList)
+
+  result <- list(
+    smoothMat = smoothMat,
+    smoothValues = smoothValues,
+    cleanValues = cleanValues,
+    covts = covts
+  )
   
-  list(smoothMat = smoothMat, smoothValues = smoothValues, 
-       cleanValues = cleanValues, covMatList = covMatList)
+  if (corr) {
+    result$corrts <- create_matrix_xts(lapply(covMatList, cov2cor))
+  }
+
+  dates <- as.Date(names(covMatList))
+  result$mahalanobis_distances <- .calculate_mahalanobis(cleanValues, result$covts, dates)
+  result$eigenvalues <- .calculate_eigenvalues(result, corr, dates)
+  result$standard_deviations <- .calculate_standard_deviations(result, dates)
+  
+  return(result)
 }
