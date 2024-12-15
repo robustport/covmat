@@ -1,6 +1,9 @@
-
 setOldClass("xts")
 
+#' @importFrom xts xts to.period
+#' @importFrom zoo index coredata
+#' @importFrom stats lag start end
+NULL
 
 #' @export
 MatrixXTS <- setClass("MatrixXTS",
@@ -28,15 +31,26 @@ create_matrix_xts <- function(covMatList) {
 
 #' @export
 setMethod("[", "MatrixXTS", function(x, i, j, ..., drop = TRUE) {
-    # Get raw data using xts indexing
-    raw_data <- x@data[i]
-    
-    # Always return a matrix with proper dimensions and names
+  raw_data <- x@data[i]
+  if (NROW(raw_data) == 1) {
+    # Single matrix case
     result <- matrix(as.numeric(raw_data), 
+                     nrow = x@dims[1], 
+                     ncol = x@dims[2])
+    dimnames(result) <- x@dimnames
+    return(result)
+  } else {
+    # Multiple matrices case
+    result <- lapply(1:NROW(raw_data), function(row) {
+      mat <- matrix(as.numeric(raw_data[row,]), 
                     nrow = x@dims[1], 
                     ncol = x@dims[2])
-    dimnames(result) <- x@dimnames
-    result
+      dimnames(mat) <- x@dimnames
+      mat
+    })
+    names(result) <- index(raw_data)
+    return(result)
+  }
 })
 
 #' @export
