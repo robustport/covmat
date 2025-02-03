@@ -114,49 +114,6 @@
   else g
 }
 
-#' Internal helper function for computing the Mahalanobis distances
-#' @noRd
-.calculate_mahalanobis <- function(cleanValues, covts, dates) {
-    xts(
-        sapply(dates, function(d) {
-            tryCatch({
-                x <- cleanValues[d]
-                sigma <- covts[d]
-                sqrt(x %*% solve(sigma) %*% t(x))
-            }, error = function(e) NA)
-        }),
-        order.by=dates
-    )
-}
-
-#' Internal helper function for computing the eigenvalues
-#' @noRd
-.calculate_eigenvalues <- function(matrices, corr = FALSE, dates) {
-    xts(
-        t(sapply(dates, function(d) {
-            tryCatch({
-                sigma <- if(corr) matrices$corrts[d] else matrices$covts[d]
-                sort(eigen(sigma)$values, decreasing = TRUE)
-            }, error = function(e) rep(NA, ncol(sigma)))
-        })),
-        order.by=dates
-    )
-}
-
-#' Internal helper function for computing the standard deviation
-#' @noRd
-.calculate_standard_deviations <- function(matrices, dates) {
-    xts(
-        t(sapply(dates, function(d) {
-            tryCatch({
-                sigma <- matrices$covts[d]
-                sqrt(diag(sigma))
-            }, error = function(e) rep(NA, ncol(sigma)))
-        })),
-        order.by=dates
-    )
-}
-
 #' Internal helper function for the Objective
 #' @noRd
 .obj.helper <- function(smoothing.matrix, R, y.hat, Sigma.hat, startup_period, 
@@ -341,10 +298,7 @@ smoothing.matrix <- function(R, startup_period = 10, training_period = 60 ,
 #' \item{smoothMat}{The optimal smoothing matrix.}
 #' \item{smoothValues}{The smoothed values as an xts object.}
 #' \item{cleanValues}{The cleaned values as an xts object.}
-#' \item{covMatList}{A list of covariance matrices for each time period.}
-#' \item{mahalanobis_distances}{A list of distances using covariance for each time period.}
-#' \item{eigenvalues}{A list of eigenvalues for covariance/correlation for each time period.}
-#' \item{standard_deviations}{A list of standard deviations when corr is TRUE for each time period.}
+#' \item{covMatList}{A list of covariance or correlation matrices for each time period.}
 #' 
 #' @export
 #' @author Rohit Arora
@@ -398,183 +352,16 @@ robustMultExpSmoothing <- function(R, corr = FALSE, smoothMat = NA, startup_peri
   smoothValues <- xts(smoothValues, order.by = index(R)[(startup_period+1):M])
   cleanValues <- xts(cleanValues, order.by = index(R)[(startup_period+1):M])
 
-  covts <- create_matrix_xts(covMatList)
-
   result <- list(
     smoothMat = smoothMat,
     smoothValues = smoothValues,
     cleanValues = cleanValues,
-    covts = covts
+    covMatList = covMatList
   )
   
   if (corr) {
-    result$corrts <- create_matrix_xts(lapply(covMatList, cov2cor))
+    result$corrMatList <- lapply(covMatList, cov2cor)
   }
-
-  dates <- as.Date(names(covMatList))
-  result$mahalanobis_distances <- .calculate_mahalanobis(cleanValues, result$covts, dates)
-  result$eigenvalues <- .calculate_eigenvalues(result, corr, dates)
-  result$standard_deviations <- .calculate_standard_deviations(result, dates)
   
   return(result)
 }
-
-#' Plot Changes in Correlation/Covariance Matrices
-#' 
-#' @description
-#' Creates a heatmap visualization of percentage changes between adjacent time periods
-#' for correlation or covariance matrices. For correlation matrices, only the upper
-#' triangular elements (excluding diagonal) are shown. For covariance matrices, the
-#' diagonal elements are included.
-#' 
-#' @importFrom ggplot2 ggplot aes geom_tile scale_fill_gradient2 theme_minimal labs theme
-#' 
-#' @param smoothfit A list containing 'corrts' and 'covts' elements from robustMultExpSmoothing
-#'                  output, each being a MatrixXTS object of correlation/covariance matrices
-#' @param corr Logical. If TRUE, plots correlation changes (excluding diagonal).
-#'             If FALSE, plots covariance changes including diagonal elements.
-#' @param start_date Character. Start date in "YYYY-MM-DD" format. If NULL, starts
-#'                   from first available date.
-#' @param end_date Character. End date in "YYYY-MM-DD" format. If NULL, ends at
-#'                 last available date.
-#' @param symbols Character vector. Asset symbols to include. If NULL, uses all
-#'                available symbols.
-#' 
-#' @return A ggplot object showing a heatmap visualization with:
-#' \item{x-axis}{Time periods}
-#' \item{y-axis}{Matrix entries (labeled by symbol pairs if symbols provided)}
-#' \item{colors}{Green (positive changes), Red (negative changes), White (minimal changes)}
-#' 
-#' @examples
-#' # Plot correlation changes for specific symbols and date range
-#' plot_matrix_changes(smoothfit, corr = TRUE, 
-#'                    start_date = "2014-07-07", 
-#'                    end_date = "2014-08-30",
-#'                    symbols = c("AAPL", "MSFT"))
-#'                    
-#' # Plot full covariance matrix changes
-#' plot_matrix_changes(smoothfit, corr = FALSE)
-#' 
-#' @export
-plot_matrix_changes <- function(smoothfit, corr = FALSE, 
-                                start_date = NULL, end_date = NULL,
-                                symbols = NULL) {
-  
-  data_to_use <- if(corr) {
-    if (is.null(smoothfit$corrts)) {
-      stop("Correlation matrices not available in smoothfit object")
-    }
-    smoothfit$corrts
-  } else {
-    if (is.null(smoothfit$covts)) {
-      stop("Covariance matrices not available in smoothfit object")
-    }
-    smoothfit$covts
-  }
-
-  
-  # Get matrices for the date range
-  if (!is.null(start_date) && !is.null(end_date)) {
-    date_range <- paste0(start_date, "/", end_date)
-    matrices <- data_to_use[date_range]
-  } else {
-    matrices <- data_to_use[index(data_to_use)]
-  }
-  
-  # Filter by symbols if provided
-  if (!is.null(symbols)) {
-    all_symbols <- colnames(matrices[[1]])
-    symbol_indices <- which(all_symbols %in% symbols)
-    if (length(symbol_indices) > 0) {
-      matrices <- lapply(matrices, function(mat) {
-        mat[symbol_indices, symbol_indices, drop = FALSE]
-      })
-    }
-  }
-  
-  # Function to extract upper triangle (excluding diagonal for correlations)
-  get_upper_triangle <- function(mat) {
-    n <- nrow(mat)
-    indices <- which(upper.tri(mat, diag = !corr), arr.ind = TRUE)
-    mat[indices]
-  }
-  
-  # Convert list of matrices to array for easier manipulation
-  dates <- names(matrices)
-  n_entries <- ncol(matrices[[1]])
-  n_upper <- if(corr) {
-    (n_entries * (n_entries - 1)) / 2  # excluding diagonal
-  } else {
-    (n_entries * (n_entries + 1)) / 2  # including diagonal
-  }
-  
-  flat_data <- do.call(rbind, lapply(matrices, get_upper_triangle))
-  
-  # Calculate percentage differences
-  pct_diff <- 100 * (flat_data[-1,] - flat_data[-nrow(flat_data),]) / 
-    flat_data[-nrow(flat_data),]
-  
-  # Cap outliers
-  cap_outliers <- function(x) {
-    lower_cap <- quantile(x, 0.01, na.rm = TRUE)
-    upper_cap <- quantile(x, 0.99, na.rm = TRUE)
-    pmin(pmax(x, lower_cap), upper_cap)
-  }
-  
-  capped_pct_diff <- as.vector(t(apply(pct_diff, 2, cap_outliers)))
-  
-  # Create data frame for plotting
-  df <- data.frame(
-    Entry = rep(1:n_upper, nrow(pct_diff)),
-    Time = rep(as.Date(dates[-1]), each = n_upper),
-    Value = capped_pct_diff
-  )
-  
-  # Create entry labels if symbols provided
-  if (!is.null(symbols)) {
-    n <- length(symbols)
-    indices <- which(upper.tri(matrix(0, n, n), diag = !corr), arr.ind = TRUE)
-    entry_labels <- paste(symbols[indices[,1]], symbols[indices[,2]])
-  }
-  
-  # Create plot
-  p <- ggplot(df, aes(x = Time, y = Entry, fill = Value)) +
-    geom_tile() +
-    scale_fill_gradient2(
-      low = "red",
-      mid = "white",
-      high = "darkgreen",
-      midpoint = 0,
-      name = "% Change",
-      limits = c(-100, 100)
-    ) +
-    theme_minimal() +
-    labs(
-      title = paste("Percentage Changes Between Adjacent Time Periods -",
-                    if(corr) "Correlations" else "Covariances"),
-      x = "Time",
-      y = "Matrix Entry"
-    ) +
-    theme(
-      axis.text.x = element_text(angle = 45, hjust = 1),
-      panel.grid.major = element_line(color = "gray", size = 0.5),
-      panel.grid.minor = element_line(color = "lightgray", size = 0.25)
-    )
-  
-  # Add appropriate y-axis labels
-  if (!is.null(symbols)) {
-    p <- p + scale_y_continuous(
-      breaks = 1:length(entry_labels),
-      labels = entry_labels,
-      minor_breaks = seq(0.5, length(entry_labels) + 0.5, by = 1)
-    )
-  } else {
-    p <- p + scale_y_continuous(
-      breaks = 1:n_upper,
-      minor_breaks = seq(0.5, n_upper + 0.5, by = 1)
-    )
-  }
-  
-  return(p)
-}
-

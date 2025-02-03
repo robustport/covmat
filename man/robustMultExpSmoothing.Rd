@@ -47,10 +47,7 @@ A list containing:
 \item{smoothMat}{The optimal smoothing matrix.}
 \item{smoothValues}{The smoothed values as an xts object.}
 \item{cleanValues}{The cleaned values as an xts object.}
-\item{covMatList}{A list of covariance matrices for each time period.}
-\item{mahalanobis_distances}{A list of distances using covariance for each time period.}
-\item{eigenvalues}{A list of eigenvalues for covariance/correlation for each time period.}
-\item{standard_deviations}{A list of standard deviations when corr is TRUE for each time period.}
+\item{covMatList}{A list of covariance or correlation matrices for each time period.}
 }
 \description{
 Calculate a robust estimate of the covariance matrix while also smoothing and 
